@@ -6,7 +6,7 @@
   (:use-macros [dommy.macros :only [deftemplate sel sel1]]))
 
 (def game-bug-count 30)
-(def game-board-width 20)
+(def game-board-width 10)
 (def game-board-height 10)
 
 (deftemplate layout [content]
@@ -15,13 +15,22 @@
 
 (def bug-states [:healthy :sick :dead])
 
-(deftemplate bug [& [state]]
+(defn bug-direction [dir]
+  (condp = dir
+    :east :fa-rotate-90
+    :south :fa-rotate-180
+    :west :fa-rotate-270
+    :normal))
+
+(deftemplate bug [& [state dir]]
   (let [color (condp = state
                 :healthy :green
                 :sick :red
                 :dead :black
-                :green)]
-    [:i.fa.fa-bug.fa-flip-vertical {:style {:color color}}]))
+                :green)
+        dir (or dir (rand-nth [:north :east :south :west]))]
+    [:i.fa.fa-bug {:style {:color color}
+                   :class (bug-direction dir)}]))
 
 (deftemplate man [& [color]]
   [:i.fa.fa-male {:style {:color (or color :black)}}])
@@ -52,9 +61,24 @@
   [(first (j/data $cell :coords))
    (last (j/data $cell :coords))])
 
-(defn populate-board []
-  (put [0 5] (man))
-  (doseq [b (range game-bug-count)]))
+(defn bug-map [start]
+  (loop [bugs (range game-bug-count)
+         bug-starts []]
+    (let [position [(rand-nth (remove #(= (first start) %)
+                                      (range game-board-width)))
+                    (rand-nth (remove #(= (last start) %)
+                                      (range game-board-height)))]]
+      (if (pos? (count bugs))
+        (if (some #{position} bug-starts)
+          (recur bugs bug-starts)
+          (recur (rest bugs)
+                 (conj bug-starts position)))
+        bug-starts))))
+
+(defn populate-board [start]
+  (put start (man))
+  (doseq [b (bug-map start)]
+    (put b (bug))))
 
 (defn validate-move [[x y] dir dist]
   (condp = dir
@@ -98,7 +122,7 @@
         l (layout g)]
     (-> ($ "#content")
         (j/html l))
-    (populate-board)
+    (populate-board [0 0])
     (wire-up-keyboard-controls)))
 
 
