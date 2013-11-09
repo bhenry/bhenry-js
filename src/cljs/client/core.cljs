@@ -1,13 +1,13 @@
 (ns client.core
   (:require [dommy.core :as dommy]
             [jayq.core :as j :refer [$]]
-            [cljs.reader :refer [read-string]]
-            )
+            [cljs.reader :refer [read-string]])
   (:use-macros [dommy.macros :only [deftemplate sel sel1]]))
 
+(def game-starting-position [5 5])
 (def game-bug-count 30)
-(def game-board-width 10)
-(def game-board-height 10)
+(def game-board-width 11)
+(def game-board-height 11)
 
 (deftemplate layout [content]
   [:div#inner-content
@@ -61,15 +61,25 @@
   [(first (j/data $cell :coords))
    (last (j/data $cell :coords))])
 
+(defn calc-buffer [start]
+  (let [ide identity]
+    (for [pair [[dec dec][ide dec][inc dec]
+                [dec ide][ide ide][inc ide]
+                [dec inc][ide inc][inc inc]]]
+      [((first pair) (first start))
+       ((last pair) (last start))])))
+
+(defn random-coords []
+  [(rand-nth (range game-board-width))
+   (rand-nth (range game-board-height))])
+
 (defn bug-map [start]
   (loop [bugs (range game-bug-count)
          bug-starts []]
-    (let [position [(rand-nth (remove #(= (first start) %)
-                                      (range game-board-width)))
-                    (rand-nth (remove #(= (last start) %)
-                                      (range game-board-height)))]]
+    (let [position (random-coords)
+          buffer-zone (calc-buffer start)]
       (if (pos? (count bugs))
-        (if (some #{position} bug-starts)
+        (if (some #{position} (concat bug-starts buffer-zone))
           (recur bugs bug-starts)
           (recur (rest bugs)
                  (conj bug-starts position)))
@@ -84,8 +94,8 @@
   (condp = dir
     :north (not (neg? (- y dist)))
     :south (> game-board-height (+ y dist))
-    :west (not (neg? (- x dist)))
-    :east (> game-board-width (+ x dist))))
+    :west  (not (neg? (- x dist)))
+    :east  (> game-board-width (+ x dist))))
 
 (defn move [from to]
   (let [dest (grab to)
@@ -98,8 +108,8 @@
     (condp = dir
       :north (move [x y] [x (- y dist)])
       :south (move [x y] [x (+ y dist)])
-      :west (move [x y] [(- x dist) y])
-      :east (move [x y] [(+ x dist) y]))))
+      :west  (move [x y] [(- x dist) y])
+      :east  (move [x y] [(+ x dist) y]))))
 
 (defn read-key-input [e]
   (let [k (.-which e)]
@@ -111,18 +121,19 @@
       :sit)))
 
 (defn wire-up-keyboard-controls []
-  (.keydown ($ "body")
-            (fn [e]
-              (let [dir (read-key-input e)]
-                (when-not (= dir :sit)
-                  (make-move (coords (find-man)) dir 1))))))
+  (.keydown
+   ($ "body")
+   (fn [e]
+     (let [dir (read-key-input e)]
+       (when-not (= dir :sit)
+         (j/prevent e)
+         (make-move (coords (find-man)) dir 1))))))
 
 (defn run []
   (let [g (gameboard game-board-height game-board-width)
         l (layout g)]
-    (-> ($ "#content")
-        (j/html l))
-    (populate-board [0 0])
+    (-> ($ "#content") (j/html l))
+    (populate-board game-starting-position)
     (wire-up-keyboard-controls)))
 
 
