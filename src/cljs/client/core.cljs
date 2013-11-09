@@ -2,7 +2,8 @@
   (:require [dommy.core :as dommy]
             [jayq.core :as j :refer [$]]
             [cljs.reader :refer [read-string]])
-  (:use-macros [dommy.macros :only [deftemplate sel sel1]]))
+  (:use-macros [dommy.macros :only [deftemplate
+                                    sel sel1]]))
 
 (def game-starting-position [5 5])
 (def game-bug-count 30)
@@ -28,12 +29,14 @@
                 :sick :red
                 :dead :black
                 :green)
-        dir (or dir (rand-nth [:north :east :south :west]))]
+        dir (or dir (rand-nth
+                     [:north :east :south :west]))]
     [:i.fa.fa-bug {:style {:color color}
                    :class (bug-direction dir)}]))
 
 (deftemplate man [& [color]]
-  [:i.fa.fa-male {:style {:color (or color :black)}}])
+  [:i.fa.fa-male
+   {:style {:color (or color :black)}}])
 
 (deftemplate blank []
   [:div.square])
@@ -47,6 +50,15 @@
          [:td {:class (str j)
                :data-coords (format "[%s,%s]" j i)}
           (blank)])])]])
+
+(defn random-coords []
+  [(rand-nth (range game-board-width))
+   (rand-nth (range game-board-height))])
+
+(defn board-coords []
+  (for [x (range game-board-width)
+        y (range game-board-height)]
+    [x y]))
 
 (defn grab [[x y]]
   ($ (format "[data-coords='[%s,%s]']" x y)))
@@ -69,21 +81,20 @@
       [((first pair) (first start))
        ((last pair) (last start))])))
 
-(defn random-coords []
-  [(rand-nth (range game-board-width))
-   (rand-nth (range game-board-height))])
+(defn calc-available [excludes]
+  (remove (set excludes) (board-coords)))
 
 (defn bug-map [start]
-  (loop [bugs (range game-bug-count)
-         bug-starts []]
-    (let [position (random-coords)
-          buffer-zone (calc-buffer start)]
-      (if (pos? (count bugs))
-        (if (some #{position} (concat bug-starts buffer-zone))
-          (recur bugs bug-starts)
+  (let [buffer-zone (calc-buffer start)]
+    (loop [bugs (range game-bug-count)
+           open (calc-available buffer-zone)
+           used []]
+      (let [position (rand-nth open)]
+        (if (next bugs)
           (recur (rest bugs)
-                 (conj bug-starts position)))
-        bug-starts))))
+                 (remove #{position} open)
+                 (conj used position))
+          (conj used position))))))
 
 (defn populate-board [start]
   (put start (man))
@@ -130,7 +141,8 @@
          (make-move (coords (find-man)) dir 1))))))
 
 (defn run []
-  (let [g (gameboard game-board-height game-board-width)
+  (let [g (gameboard game-board-height
+                     game-board-width)
         l (layout g)]
     (-> ($ "#content") (j/html l))
     (populate-board game-starting-position)
