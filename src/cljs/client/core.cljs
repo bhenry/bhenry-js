@@ -111,8 +111,8 @@
 (defn move [from to]
   (let [dest (grab to)
         curr (j/html (grab from))]
-    (put to curr)
-    (put from (blank))))
+    (put from (blank))
+    (put to curr)))
 
 (defn make-move [[x y] dir dist]
   (when (validate-move [x y] dir dist)
@@ -121,6 +121,15 @@
       :south (move [x y] [x (+ y dist)])
       :west  (move [x y] [(- x dist) y])
       :east  (move [x y] [(+ x dist) y]))))
+
+(defn move-toward [[x1 y1] [x2 y2]]
+  (let [new-x (cond (< x1 x2) (inc x1)
+                    (> x1 x2) (dec x1)
+                    :equal x1)
+        new-y (cond (< y1 y2) (inc y1)
+                    (> y1 y2) (dec y1)
+                    :equal y1)]
+    (move [x1 y1] [new-x new-y])))
 
 (defn read-key-input [e]
   (let [k (.-which e)]
@@ -140,12 +149,22 @@
          (j/prevent e)
          (make-move (coords (find-man)) dir 1))))))
 
+(defn wire-up-mouse-controls []
+  (.click
+   ($ "#gameboard table")
+   (fn [e]
+     (let [target (-> e (.-target) $ (j/closest "td"))
+           final (coords target)
+           current (coords (find-man))]
+       (move-toward current final)))))
+
 (defn run []
   (let [g (gameboard game-board-height
                      game-board-width)
         l (layout g)]
     (-> ($ "#content") (j/html l))
     (populate-board game-starting-position)
-    (wire-up-keyboard-controls)))
+    (wire-up-keyboard-controls)
+    (wire-up-mouse-controls)))
 
 
