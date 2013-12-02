@@ -5,10 +5,14 @@
   (:use-macros [dommy.macros :only [deftemplate
                                     sel sel1]]))
 
-(def game-starting-position [5 5])
-(def game-bug-count 30)
-(def game-board-width 11)
-(def game-board-height 11)
+(def game-starting-position [0 0])
+(def game-bug-count 16)
+(def game-board-width 9)
+(def game-board-height 9)
+
+(def character
+  (atom {:healthy "fa-male"
+         :sick "fa-wheelchair"}))
 
 (deftemplate layout [content]
   [:div#inner-content
@@ -34,15 +38,16 @@
     [:i.fa.fa-bug {:style {:color color}
                    :class (bug-direction dir)}]))
 
-(deftemplate man [& [color]]
-  [:i.fa.fa-male
-   {:style {:color (or color :black)}}])
+(deftemplate man [& [state color]]
+  [:i.fa.character
+   {:style {:color (or color :black)}
+    :class (get @character state (:healthy @character))}])
 
 (deftemplate blank []
   [:div.square])
 
 (deftemplate gameboard [h w]
-  [:div#gameboard
+  [:div#gameboard.noselect
    [:table {:border "1px" :border-collapse true}
     (for [i (range h)]
       [:tr {:class (str i)}
@@ -51,9 +56,12 @@
                :data-coords (format "[%s,%s]" j i)}
           (blank)])])]])
 
-(defn random-coords []
-  [(rand-nth (range game-board-width))
-   (rand-nth (range game-board-height))])
+(defn random-coords
+  ([] (random-coords 0 game-board-width
+                     0 game-board-height))
+  ([x1 x2 y1 y2]
+     [(rand-nth (range x1 x2))
+      (rand-nth (range y1 y2))]))
 
 (defn board-coords []
   (for [x (range game-board-width)
@@ -67,7 +75,7 @@
   (j/html (grab xy) val))
 
 (defn find-man []
-  (-> ($ ".fa-male") (j/closest "td")))
+  (-> ($ ".character") (j/closest "td")))
 
 (defn coords [$cell]
   [(first (j/data $cell :coords))
@@ -151,8 +159,9 @@
 
 (defn wire-up-mouse-controls []
   (.click
-   ($ "#gameboard table")
+   ($ "#gameboard table td")
    (fn [e]
+     (j/prevent e)
      (let [target (-> e (.-target) $ (j/closest "td"))
            final (coords target)
            current (coords (find-man))]
